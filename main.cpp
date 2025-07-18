@@ -179,6 +179,9 @@ anari::World generateScene(anari::Device device)
   anari::World world = anari::newObject<anari::World>(device);
   anari::setAndReleaseParameter(
       device, world, "volume", anari::newArray1D(device, &volume));
+
+  anari::commitParameters(device, world);
+
   anari::release(device, volume);
   return world;
 }
