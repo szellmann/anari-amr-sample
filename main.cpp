@@ -176,9 +176,23 @@ anari::World generateScene(anari::Device device)
 
   // Create World //
 
+  auto group = anari::newObject<anari::Group>(device);
+  anari::setAndReleaseParameter(
+      device, group, "volume", anari::newArray1D(device, &volume));
+  anari::commitParameters(device, group);
+
+  auto inst = anari::newObject<anari::Instance>(device, "transform");
+  anari::setAndReleaseParameter(device, inst, "group", group);
+  anari::math::mat4 xfm({2,0,0,0},
+                        {0,1,0,0},
+                        {0,0,1,0},
+                        {0,0,0,1});
+  anari::setParameter(device, inst, "transform", xfm);
+  anari::commitParameters(device, inst);
+
   anari::World world = anari::newObject<anari::World>(device);
   anari::setAndReleaseParameter(
-      device, world, "volume", anari::newArray1D(device, &volume));
+      device, world, "instance", anari::newArray1D(device, &inst));
 
   anari::commitParameters(device, world);
 
