@@ -18,18 +18,34 @@ using namespace anari::math;
 
 struct {
   anari::SpatialField field{nullptr};
+  anari::Array1D data{nullptr};
 } g_appState;
 
 static void updateFieldData(anari::Device device, const float *data, size_t numScalars)
 {
-  anari::setParameterArray1D(device,
-      g_appState.field,
-      "data",
+#if 0
+   anari::setParameterArray1D(device,
+       g_appState.field,
+       "data",
+       ANARI_FLOAT32,
+       &data[0],
+       numScalars);
+#else
+  g_appState.data = anari::newArray1D(device,
       ANARI_FLOAT32,
-      &data[0],
       numScalars);
 
+  anari::setParameter(device,
+      g_appState.field,
+      "data",
+      g_appState.data);
+
   anari::commitParameters(device, g_appState.field);
+
+  float *arr = anari::map<float>(device, g_appState.data);
+  memcpy(arr, data, numScalars*sizeof(data[0]));
+  anari::unmap(device, g_appState.data);
+#endif
 }
 
 // ========================================================
@@ -337,7 +353,12 @@ int main()
     1.0f,
   };
 
-  updateFieldData(device, newData, sizeof(newData)/sizeof(newData[0]));
+  //updateFieldData(device, newData, sizeof(newData)/sizeof(newData[0]));
+
+  // map an already created array (devices should also support that..):
+  float *arr = anari::map<float>(device, g_appState.data);
+  memcpy(arr, newData, sizeof(newData));
+  anari::unmap(device, g_appState.data);
 
   // render another frame //
 
