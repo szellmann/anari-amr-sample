@@ -16,11 +16,27 @@
 
 using namespace anari::math;
 
+struct {
+  anari::SpatialField field{nullptr};
+} g_appState;
+
+static void updateFieldData(anari::Device device, const float *data, size_t numScalars)
+{
+  anari::setParameterArray1D(device,
+      g_appState.field,
+      "data",
+      ANARI_FLOAT32,
+      &data[0],
+      numScalars);
+
+  anari::commitParameters(device, g_appState.field);
+}
+
 // ========================================================
 // generate our test scene (where the AMR to ANARI
 // conversion happens
 // ========================================================
-anari::World generateScene(anari::Device device)
+static anari::World generateScene(anari::Device device)
 {
   // input cells for the bricks below
   // but we don't use them, they'd be the
@@ -78,48 +94,21 @@ anari::World generateScene(anari::Device device)
   refinementRatio[0] = 2;
   refinementRatio[1] = 2;
 
-  auto field = anari::newObject<anari::SpatialField>(device, "amr");
+  g_appState.field = anari::newObject<anari::SpatialField>(device, "amr");
 
   anari::setParameterArray1D(device,
-      field,
+      g_appState.field,
       "block.level",
       ANARI_INT32,
       blockLevel.data(),
       blockLevel.size());
   anari::setParameterArray1D(device,
-      field,
+      g_appState.field,
       "refinementRatio",
       ANARI_UINT32,
       refinementRatio.data(),
       refinementRatio.size());
 
-#if 0 // current spec as per the ANARI-Docs PR
-  std::vector<anari::Array3D> blockData(2);
-  for (size_t i = 0; i < blockData.size(); ++i) {
-    blockData[i] = anari::newArray3D(device,
-        &data[blockOffsets[i]],
-        blockDims[i].x,
-        blockDims[i].y,
-        blockDims[i].z);
-  }
-
-  anari::setParameterArray1D(device,
-      field,
-      "block.start",
-      ANARI_INT32_VEC3,
-      blockStart.data(),
-      blockStart.size());
-  anari::setParameterArray1D(device,
-      field,
-      "block.data",
-      ANARI_ARRAY1D,
-      blockData.data(),
-      blockData.size());
-
-  for (auto a : blockData)
-    anari::release(device, a);
-
-#else // the change I'd like to see in the spec (arrays are flat):
   struct box3i { int3 lower, upper; };
 
   std::vector<box3i> blockBounds(blockDims.size());
@@ -129,25 +118,20 @@ anari::World generateScene(anari::Device device)
   }
 
   anari::setParameterArray1D(device,
-      field,
+      g_appState.field,
       "block.bounds",
       ANARI_INT32_BOX3,
       blockBounds.data(),
       blockBounds.size());
-  anari::setParameterArray1D(device,
-      field,
-      "data",
-      ANARI_FLOAT32,
-      &data[0],
-      sizeof(data)/sizeof(data[0]));
-#endif
 
-  anari::commitParameters(device, field);
+  updateFieldData(device, data, sizeof(data)/sizeof(data[0]));
+
+  anari::commitParameters(device, g_appState.field);
 
   // Volume //
 
   auto volume = anari::newObject<anari::Volume>(device, "transferFunction1D");
-  anari::setParameter(device, volume, "value", field);
+  anari::setParameter(device, volume, "value", g_appState.field);
 
   std::vector<anari::math::float3> colors;
   std::vector<float> opacities;
@@ -341,10 +325,27 @@ int main()
 
   // render frame //
 
-  render(device, frame, "anari-amr-sample.png");
+  render(device, frame, "anari-amr-sample-0.png");
+
+  float newData[9] = {
+    // first block:
+    0.f, 0.1f,
+    0.f, 0.1f,
+    0.f, 0.1f,
+    0.f, 0.1f,
+    // second block:
+    1.0f,
+  };
+
+  updateFieldData(device, newData, sizeof(newData)/sizeof(newData[0]));
+
+  // render another frame //
+
+  render(device, frame, "anari-amr-sample-1.png");
 
   // Cleanup remaining ANARI objets //
 
+  anari::release(device, g_appState.field);
   anari::release(device, camera);
   anari::release(device, renderer);
   anari::release(device, world);
